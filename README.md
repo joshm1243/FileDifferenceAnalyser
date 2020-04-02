@@ -1,2 +1,3 @@
 # File Difference Analyser
-Accepts two .txt, .csv and .tsv files and displays their differences.
+Accepts two files and displays their differences.
+Accepts .txt, .csv and .tsv file types.
