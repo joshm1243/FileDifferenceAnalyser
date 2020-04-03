@@ -15,6 +15,17 @@ namespace FileDifferenceAnalyser
         {
             string fileContent = File.ReadAllText(this.FilePath);
             string[] fileContentArray = fileContent.Split('\n');
+
+            for (int i = 0; i < fileContentArray.Length - 1; i++)
+            {
+                fileContentArray[i] = fileContentArray[i].Remove(fileContentArray[i].Length - 1);
+            }
+
+            //Removes the last line containing the \n character
+            List<string> temp = new List<string>(fileContentArray);
+            temp.RemoveAt(temp.Count() - 1);
+            fileContentArray = temp.ToArray();
+
             return fileContentArray;
         }
 
