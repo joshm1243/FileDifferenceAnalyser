@@ -61,9 +61,8 @@ namespace FileDifferenceAnalyser
             //Finding the 'cluster ends' where similar lines are found
             //Everything above the 'cluster end' will be + or - (for that cluster only)
 
-            List<int[]> similarLineNumbers = new List<int[]>();
-
-            Dictionary<string, int> recentOccurences = new Dictionary<string, int>();
+            Dictionary<string, int> file1RecentOccurences = new Dictionary<string, int>();
+            Dictionary<string, int> file2RecentOccurences = new Dictionary<string, int>();
 
             int locatedPosition;
             //int lastLocatedSimilarity = -1;
@@ -108,18 +107,20 @@ namespace FileDifferenceAnalyser
                 {
 
                     //If a search for the line has not occurred before
-                    if (!recentOccurences.ContainsKey(file1Content[i]))
+                    if (!file2RecentOccurences.ContainsKey(file1Content[i]))
                     {
-                        recentOccurences.Add(file1Content[i], -1);
+                        file2RecentOccurences.Add(file1Content[i], -1);
                     }
 
                     //Finding the line position in the second text file
-                    locatedPosition = file2Content.IndexOf(file1Content[i], recentOccurences[file1Content[i]] + 1);
+                    locatedPosition = file2Content.IndexOf(file1Content[i], file2RecentOccurences[file1Content[i]] + 1);
+
+    
 
                     //A corresponding value is inside the file2 list
                     if (locatedPosition != -1)
                     {
-                        recentOccurences[file1Content[i]] = locatedPosition;
+                        file2RecentOccurences[file1Content[i]] = locatedPosition;
 
                         if (i > 0 && similarityBlocks.Count() > 0)
                         {
@@ -128,7 +129,7 @@ namespace FileDifferenceAnalyser
                             blockLength = similarityBlocks[similarityBlocks.Count() - 1].BlockLength;
                         }
 
-                        if (i > 0 && file1BlockStart + blockLength == i && file2BlockStart + blockLength == locatedPosition)
+                        if (i > 0 && similarityBlocks.Count() > 0 && file1BlockStart + blockLength == i && file2BlockStart + blockLength == locatedPosition)
                         {
                             similarityBlocks[similarityBlocks.Count() - 1].BlockLength++;
 
@@ -150,20 +151,114 @@ namespace FileDifferenceAnalyser
                 }
             }
 
+
+
+            int possibleFile1Start = -1;
+            int possibleFile2Start = -1;
+            int additionalLength = -1;
+            int newStateLength = -1;
+            int currentStateLength = -1;
+            int currentBlockPosition = -1;
+
+            if (similarityBlocks.Count() > 0)
+            {
+
+                for (int i = 1; i < similarityBlocks.Count(); i++)
+                {
+
+
+                    possibleFile1Start = similarityBlocks[i].File1Start;
+                    possibleFile2Start = similarityBlocks[i].File2Start;
+
+                    while (possibleFile1Start > 0 && possibleFile2Start > 0)
+                    {
+                        if (file1Content[possibleFile1Start - 1] == file2Content[possibleFile2Start - 1])
+                        {
+                            possibleFile1Start--;
+                            possibleFile2Start--;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+
+                    //If the position of the start of the block has decreased
+                    if (possibleFile1Start < similarityBlocks[i].File1Start)
+                    {
+
+                        additionalLength = similarityBlocks[i].File1Start - possibleFile1Start;
+
+
+                        currentStateLength = 0;
+
+                        for (int j = 0; j < additionalLength; j++)
+                        {
+                            currentBlockPosition = Block.GetBlockForIndex(similarityBlocks, possibleFile1Start + j, possibleFile2Start + j);
+                            currentStateLength += similarityBlocks[currentBlockPosition].BlockLength;
+                        }
+
+                        newStateLength = similarityBlocks[i].BlockLength + additionalLength;
+
+
+                        if (newStateLength > currentStateLength)
+                        {
+                            for (int j = 0; j < additionalLength; j++)
+                            {
+                                currentBlockPosition = Block.GetBlockForIndex(similarityBlocks, possibleFile1Start + j, possibleFile2Start + j);
+                                similarityBlocks[currentBlockPosition].BlockLength -= 1;
+                                if (similarityBlocks[currentBlockPosition].BlockLength < 1)
+                                {
+                                    similarityBlocks[currentBlockPosition].Removed = true;
+                                }
+                            }
+
+                            //Changing the details of the ammended larger block
+                            similarityBlocks[i].File1Start = possibleFile1Start;
+                            similarityBlocks[i].File2Start = possibleFile2Start;
+                            similarityBlocks[i].BlockLength += additionalLength;
+                        }
+
+
+                    }
+
+                    
+                }
+            }
+
+
+
+
+
+
             //Beginning the algorithm
+            Console.ReadKey();
             Console.WriteLine();
 
+            similarityBlocks = similarityBlocks.Where(Block => !Block.Removed).ToList();
+
             //Prioritises the similarity blocks that have the highest length
-            similarityBlocks = similarityBlocks.OrderBy(Block => Block.BlockLength).ToList();
+            similarityBlocks = similarityBlocks.OrderByDescending(Block => Block.BlockLength).ToList();
+
+
+
+
 
 
             int scA;
-            int scB;
-            int scC;
-            int scD;
+     
 
             for (int i = 0; i < similarityBlocks.Count(); i++)
             {
+                similarityBlocks[i].Key = i;
+            }
+
+            for (int i = 0; i < similarityBlocks.Count(); i++)
+            {
+
+
+                
+
 
                 blockLength = similarityBlocks[i].BlockLength;
                 file1BlockStart = similarityBlocks[i].File1Start;
@@ -171,30 +266,68 @@ namespace FileDifferenceAnalyser
                 file2BlockStart = similarityBlocks[i].File2Start;
                 file2BlockEnd = (file2BlockStart + blockLength) - 1;
 
-                scA = similarityBlocks.FindIndex(Block => file1BlockEnd < Block.File1Start && !Block.Straddles && Block.File1Start != file1BlockStart);
-                scB = similarityBlocks.FindIndex(Block => file2BlockStart > ((Block.File2Start + Block.BlockLength) - 1) && !Block.Straddles && Block.File2Start != file2BlockStart);
-                scC = similarityBlocks.FindIndex(Block => file1BlockStart > ((Block.File1Start + Block.BlockLength) - 1) && !Block.Straddles && Block.File1Start != file1BlockStart);
-                scD = similarityBlocks.FindIndex(Block => file2BlockEnd < Block.File2Start && !Block.Straddles && Block.File2Start != file2BlockStart);
+                //scA = similarityBlocks.FindIndex(Block => file1BlockEnd < Block.File1Start && !Block.Straddles && Block.File1Start != file1BlockStart);
+                //scB = similarityBlocks.FindIndex(Block => file2BlockStart > ((Block.File2Start + Block.BlockLength) - 1) && !Block.Straddles && Block.File2Start != file2BlockStart);
+                //scC = similarityBlocks.FindIndex(Block => file1BlockStart > ((Block.File1Start + Block.BlockLength) - 1) && !Block.Straddles && Block.File1Start != file1BlockStart);
+                //scD = similarityBlocks.FindIndex(Block => file2BlockEnd < Block.File2Start && !Block.Straddles && Block.File2Start != file2BlockStart);
 
-                Console.WriteLine("-----------------------------------------------------");
-                Console.WriteLine("Starting on new block " + similarityBlocks[i].File1Start + "\t" + similarityBlocks[i].File2Start);
+                //if ((scA > -1 && scB > -1) || (scC > -1 && scD > -1))
+                //{
+                //      similarityBlocks[i].Straddles = true;
+                //      similarityBlocks.Remove(similarityBlocks[i]);
+                //}
 
-                Console.WriteLine(scA);
-                Console.WriteLine(scB);
-                Console.WriteLine(scC);
-                Console.WriteLine(scD);
-                Console.WriteLine("-----------------------------------------------------");
+                //scA = similarityBlocks.FindIndex(b =>
+                //    ((file1BlockEnd < b.File1Start
+                //    && file2BlockStart > ((b.File2Start + b.BlockLength) - 1))
+                //    || (file1BlockStart > ((b.File1Start + b.BlockLength) - 1)
+                //    && file2BlockEnd < b.File2Start))
+                //    && !b.Straddles && b.File1Start != file1BlockStart
+                //    && b.BlockLength >= blockLength);
+                ////&& b.BlockLength >= Block.GetBlockGroupLength(similarityBlocks,i,b.Key - 1));
 
-                if ((scA > -1 && scB > -1) || (scC > -1 && scD > -1))
+
+                if (!similarityBlocks[i].Straddles)
                 {
-                    if (!(scA > -1 && scB > -1 && scC > -1 && scD > -1))
+
+                    for (int j = 0; j < similarityBlocks.Count(); j++)
                     {
-                        similarityBlocks[i].Straddles = true;
-                        //similarityBlocks.Remove(similarityBlocks[i]);
+
+
+
+                        if (i != j && !similarityBlocks[j].Straddles)
+                        {
+
+                            if (similarityBlocks[j].File1Start < similarityBlocks[i].File1Start)
+                            {
+                                if (similarityBlocks[j].File2Start > similarityBlocks[i].File2Start)
+                                {
+                                    similarityBlocks[j].Straddles = true;
+                                }
+                            }
+
+                            if (similarityBlocks[j].File2Start < similarityBlocks[i].File2Start)
+                            {
+                                if (similarityBlocks[j].File1Start > similarityBlocks[i].File1Start)
+                                {
+                                    similarityBlocks[j].Straddles = true;
+                                }
+                            }
+                        }
+
                     }
                 }
+                //&& b.BlockLength >= Block.GetBlockGroupLength(similarityBlocks,i,b.Key - 1));
 
+                //Console.WriteLine(scA);
+
+       
+
+                
+                
             }
+
+
 
             
 
@@ -202,16 +335,18 @@ namespace FileDifferenceAnalyser
 
             similarityBlocks = similarityBlocks.Where(Block => !Block.Straddles).ToList();
 
+
+
             for (int i = 0; i < similarityBlocks.Count(); i++)
             {
-                Console.WriteLine(similarityBlocks[i].File1Start + "\t" + similarityBlocks[i].File2Start + "\t" + similarityBlocks[i].BlockLength + "\t" + similarityBlocks[i].Straddles);
+                Console.WriteLine(similarityBlocks[i].File1Start + "\t" + similarityBlocks[i].File2Start + "\t" + similarityBlocks[i].BlockLength + "\t" + similarityBlocks[i].Removed);
             }
 
 
 
 
-            //Program Halt
-            Console.ReadKey();
+            //Program Halt Area
+            Console.WriteLine();
 
 
             //for (int i = 0; i < similarLineNumbers.Count(); i++)
@@ -395,16 +530,6 @@ namespace FileDifferenceAnalyser
 
 
 
-            if (!file1Content.SequenceEqual(file2Content))
-            {
-
-
-
-            }
-            else
-            {
-                //The two files are exactly the same
-            }
 
 
             return fileComponents;
