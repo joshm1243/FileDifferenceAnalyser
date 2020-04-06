@@ -25,25 +25,37 @@ namespace FileDifferenceAnalyser
             return blockGroupTotal;
         }
 
-        //Returns the current block index for a given position
-        public static int GetBlockForIndex(List<Block> similarityBlocks, int file1Index, int file2Index)
+
+
+        public static int GetBlockForIndex(List<Block> similarityBlocks, int fileToSearch, int index)
         {
             for (int i = 0; i < similarityBlocks.Count(); i++)
             {
+                if (!similarityBlocks[i].Removed)
+                {
+                    if (fileToSearch == 1)
+                    {
+                        if (index >= similarityBlocks[i].File1Start && index < similarityBlocks[i].File1Start + similarityBlocks[i].BlockLength)
+                        {
+                            return i;
+                        }
+                    }
+                    else
+                    {
+                        if (index >= similarityBlocks[i].File2Start && index < similarityBlocks[i].File2Start + similarityBlocks[i].BlockLength)
+                        {
+                            return i;
+                        }
+                    }
 
-                if (file1Index >= similarityBlocks[i].File1Start && file1Index < similarityBlocks[i].File1Start + similarityBlocks[i].BlockLength)
-                {
-                    return i;
                 }
-                else if (file2Index >= similarityBlocks[i].File2Start && file2Index < similarityBlocks[i].File2Start + similarityBlocks[i].BlockLength)
-                {
-                    return i;
-                }
-                
             }
 
             return -1;
         }
+
+  
+
 
         private int _file1start = -1;
         public int File1Start { get; set; }
