@@ -26,26 +26,80 @@ namespace FileDifferenceAnalyser
                 Console.WriteLine(file2.Name + " has been opened");
             }
 
-            foreach (LineComponent lc in file1.FindDifference(file2.Read()))
+            
+
+            foreach (Line l in file1.FindDifference(file2.Read(), 1))
             {
+                //Console.WriteLine();
 
-                if (lc.Variant == -1)
+  
+                //if (l.File1Number == l.File2Number)
+                //{
+                //    Console.WriteLine("Line: " + (l.File1Number + 1));
+                //}
+                //else
+                //{
+                //    Console.WriteLine("Line: " + l.File1Number + ":" + l.File2Number);
+                //}
+
+
+
+
+                foreach (Phrase p in l.Phrases)
                 {
-                    UI.CursorRed();
-                    Console.WriteLine(" - " + lc.Text);
-                }
-                else if (lc.Variant == 1)
-                {
-                    UI.CursorGreen();
-                    Console.WriteLine(" + " + lc.Text);
-                }
-                else
-                {
-                    UI.CursorWhite();
-                    Console.WriteLine(lc.Text);
+
+                    Console.BackgroundColor = ConsoleColor.Black;
+
+                    if (p.Variant == -1)
+                    {
+                        
+                        if (p.Text == " ")
+                        {
+                            Console.BackgroundColor = ConsoleColor.DarkRed;
+                        }
+                        else
+                        {
+                            UI.CursorRed();
+                        }
+                    }
+                    else if (p.Variant == 1)
+                    {
+
+                        if (p.Text == " ")
+                        {
+                            Console.BackgroundColor = ConsoleColor.Green;
+                        }
+                        else
+                        {
+                            UI.CursorGreen();
+                        }
+
+                   
+
+
+                    }
+                    else
+                    {
+
+                        if (p.Text == " ")
+                        {
+                            Console.BackgroundColor = ConsoleColor.White;
+                        }
+                        else
+                        {
+                            UI.CursorWhite();
+                        }
+
+                    }
+
+                    Console.Write(p.Text);
+
+
+
                 }
 
-                
+                Console.WriteLine();
+
             }
             
             Console.ReadKey();

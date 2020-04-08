@@ -47,7 +47,6 @@
     <Compile Include="CSVFile.cs" />
     <Compile Include="IReadable.cs" />
     <Compile Include="Line.cs" />
-    <Compile Include="LineComponent.cs" />
     <Compile Include="Phrase.cs" />
     <Compile Include="Repository.cs" />
     <Compile Include="Program.cs" />

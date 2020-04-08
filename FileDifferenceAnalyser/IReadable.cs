@@ -12,6 +12,6 @@ namespace FileDifferenceAnalyser
         string Name { get; }
         bool Open(string path);
         string[] Read();
-        List<LineComponent> FindDifference(string[] secondFile);
+        List<Line> FindDifference(string[] secondFile, int granularity);
     }
 }
