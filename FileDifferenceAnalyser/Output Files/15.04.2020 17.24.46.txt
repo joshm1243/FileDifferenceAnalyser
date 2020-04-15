@@ -1,0 +1,6 @@
+FILE DIFFERENCE ANALYSER SUMMARY
+Timestamp:   15.04.2020 17.24.46
+Comparing:   'file1.txt' TO 'file2.txt'
+Granularity: Per Character
+
+The two files were identical.

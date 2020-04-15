@@ -8,10 +8,9 @@ namespace FileDifferenceAnalyser
 {
     interface IReadable
     {
-
         string Name { get; }
         bool Open(string path);
-        string[] Read();
-        List<Line> FindDifference(string[] secondFile, int granularity);
+        List<string> Read();
+        List<Line> FindDifference(List<string> secondFile, int granularity);
     }
 }

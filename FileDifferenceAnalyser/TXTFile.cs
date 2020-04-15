@@ -11,9 +11,12 @@ namespace FileDifferenceAnalyser
     class TXTFile : Repository, IReadable
     {
         //Override for the base class 'Read' method
-        public override string[] Read()
+        public override List<string> Read()
         {
-            string fileContent = File.ReadAllText(this.FilePath);
+
+            
+            string fileContent = File.ReadAllText(FilePath);
+       
             string[] fileContentArray = fileContent.Split('\n');
 
             for (int i = 0; i < fileContentArray.Length - 1; i++)
@@ -22,17 +25,34 @@ namespace FileDifferenceAnalyser
             }
 
             //Removes the last line containing the \n character
-            List<string> temp = new List<string>(fileContentArray);
-            temp.RemoveAt(temp.Count() - 1);
-            fileContentArray = temp.ToArray();
+            List<string> fileContentList = new List<string>(fileContentArray);
+            fileContentList.RemoveAt(fileContentList.Count() - 1);
 
-            return fileContentArray;
+            return fileContentList;
         }
 
-        //Override for the base class 'Write' method
-        public override void Write()
+        public override bool Create(string directoryPath)
         {
 
+
+            FilePath = GetAbsolutePath(directoryPath + GetDateTime() + ".txt");
+
+
+            if (Exists(FilePath))
+            {
+                File.Create(FilePath);
+            }
+
+            return true;
+        }
+
+       
+
+        //Override for the base class 'Write' method
+        public override bool Write(string[] fileContent)
+        {
+            File.WriteAllLines(FilePath, fileContent);
+            return true;
         }
     }
 }

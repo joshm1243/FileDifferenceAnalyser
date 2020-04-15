@@ -9,8 +9,7 @@ namespace FileDifferenceAnalyser
     class Block
     {
 
-
-        public List<Block> subBlocks { get; set; }
+        public List<Block> SubBlocks { get; set; }
         
         public bool ContainsSubBlock { get; set; }
 

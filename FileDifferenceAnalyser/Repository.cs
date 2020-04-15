@@ -8,86 +8,179 @@ using System.IO;
 namespace FileDifferenceAnalyser
 {
 
-    abstract class Repository : IReadable
+    abstract class Repository : IReadable, IWritable
     {
+
         public string FilePath { get; set; }
         public string Name { get; set; }
-        public bool IsOpen { get; set; }
+
+
+        public static string GetFileName(string filePath)
+        {
+            return filePath.Split('\\')[filePath.Split('\\').Length - 1];
+        }
+
+        public static string GetFileExtention(string filePath)
+        {
+            return Repository.GetFileName(filePath).Split('.').Last();
+        }
+
+        public static string GetDateTime()
+        {
+            DateTime currentDateTime = DateTime.Now;
+            return currentDateTime.ToString("dd.MM.yyyy HH.mm.ss");
+        }
+
+        public static string GetAbsolutePath(string filePath)
+        {
+            return Path.IsPathRooted(filePath) ? filePath : Path.GetFullPath(filePath);
+        }
+
+        public static bool Exists(string filePath)
+        {
+            return File.Exists(filePath);
+        }
+
 
         //Available for read and write
-        public bool Open(string specifiedPath)
+        public bool Open(string filePath)
         {
 
             //Checking if a path has been inputted
-            if (specifiedPath.Length == 0)
+            if (filePath.Length == 0)
             {
                 throw new ArgumentNullException();
             }
 
-            if (Path.IsPathRooted(specifiedPath))
-            {
-                FilePath = specifiedPath;
-            }
-            else
-            {
-                FilePath = Path.GetFullPath(specifiedPath);
-            }
+            FilePath = GetAbsolutePath(filePath);
 
-            if (File.Exists(FilePath))
-            {
-                Name = FilePath.Split('\\')[FilePath.Split('\\').Length - 1];
-                IsOpen = true;
-                return true;
-            }
-            else
-            {
-                return false;
-            }
+            Name = GetFileName(FilePath);
+
+            return Exists(FilePath);
+
         }
 
+        //Forces derived classes to implement some kind of 'create file' method
+        public abstract bool Create(string directoryPath);
+
         //Forces derived classes to implement some kind of 'read' method
-        public abstract string[] Read();
+        public abstract List<string> Read();
 
         //Forces derived classes to implement some kind of 'write' method
-        public abstract void Write();
+        public abstract bool Write(string[] fileOutput);
 
-
-        private Block GetLongestSublist(List<string> list1, List<string> list2, int index1Start, int index1End, int index2Start, int index2End)
+        public string[] CreateDiffForFile(int granularity, string file1Name, string file2Name, List<Line> lines = null)
         {
 
-            Block largestBlock = new Block();
+            int currentVariant;
+            string currentString;
+            float differences = 0;
+            float similarities = 0;
 
-            largestBlock.Length = 0;
+            List<string> fileOutput = new List<string>
+            {
+                "FILE DIFFERENCE ANALYSER SUMMARY",
+                "Timestamp:   " + GetDateTime(),
+                "Comparing:   '" + file1Name + "' TO '" + file2Name + "'"
+            };
+
+            
+
+            if (granularity == 0) { fileOutput.Add("Granularity: Per Line"); }
+            else if (granularity == 1) { fileOutput.Add("Granularity: Per Word"); }
+            else { fileOutput.Add("Granularity: Per Character"); }
+            fileOutput.Add("");
+
+            string fileExtention = GetFileExtention(FilePath);
+
+            if (lines != null)
+            {
+
+                foreach (Line l in lines)
+                {
+
+                    currentString = "";
+                    currentVariant = -2;
+
+                    foreach (Phrase p in l.Phrases)
+                    {
+
+                        if (p.Variant == -1 && currentVariant != -1)
+                        {
+                            currentString += fileExtention == "csv" ? "<" : "-";
+                        }
+                        else if (p.Variant == 0 && currentVariant != 0)
+                        {
+                            currentString += fileExtention == "csv" ? "^" : "=";
+                        }
+                        else if (p.Variant == 1 && currentVariant != 1)
+                        {
+                            currentString += fileExtention == "csv" ? ">" : "+";
+                        }
+
+                        if (p.Variant == -1 || p.Variant == 1)
+                        {
+                            differences++;
+                        }
+                        else
+                        {
+                            similarities++;
+                        }
+
+                        currentVariant = p.Variant;
+
+                        currentString += p.Text;
+
+                    }
+
+                    fileOutput.Add(currentString);
+                }
+
+                fileOutput.Insert(3, "Difference Rating: " + Math.Round((differences / (similarities + differences) * 100), 2).ToString() + "%");
+
+            }
+            else
+            {
+                fileOutput.Add("The two files were identical.");
+            }
 
 
+            return fileOutput.ToArray();
+        }
+
+        //Returns the longest common subarray between two specified lists
+        private Block GetLongestSublist(List<string> list1, List<string> list2, int list1Start, int list1End, int list2Start, int list2End)
+        {
             int file1Pos;
             int file2Pos;
             int length;
 
-            for (int i = index1Start; i < index1End; i++)
+            //Creating the block that will contain indicies of the largest sublist
+            Block largestBlock = new Block();
+   
+            //Looping through each item in list1, comparing each to every item in list2
+            for (int i = list1Start; i < list1End; i++)
             {
-
-                for (int j = index2Start; j < index2End; j++)
+                for (int j = list2Start; j < list2End; j++)
                 {
 
                     file1Pos = i;
                     file2Pos = j;
                     length = 0;
 
-                    while (file1Pos < index1End && file2Pos < index2End)
+                    //Attempt to extend the current list while there are still elements in both lists
+                    while (file1Pos < list1End && file2Pos < list2End)
                     {
                         if (list1[file1Pos] == list2[file2Pos])
                         {
                             file1Pos++;
                             file2Pos++;
-                            length++; ;
+                            length++;
                         }
-                        else
-                        {
-                            break;
-                        }
+                        else { break; }
                     }
 
+                    //If the length of the current block exceeds the length of the currently stored block
                     if (length > largestBlock.Length)
                     {
                         largestBlock.File1Start = i;
@@ -100,219 +193,183 @@ namespace FileDifferenceAnalyser
             return largestBlock;
         }
 
-        private List<Block> GetSimilarities(List<string> list1, List<string> list2, int index1Start, int index1End, int index2Start, int index2End, bool recLevel, int granularity)
+        //Splits a string down to a specified granularity (either words or characters)
+        private List<string> SplitString(string stringToSplit, int granularity)
+        {
+            List<string> stringArray;
+
+            //Splits a string into a series of words seperated by spaces
+            if (granularity == 1) { stringArray = stringToSplit.Split(' ').ToList(); }
+
+            //Splits a string into a series of characters
+            else { stringArray = stringToSplit.Select(curChar => curChar.ToString()).ToList(); }
+
+            return stringArray;
+        }
+
+        //
+        private List<Block> GetSubSimilarities(List<string> list1, List<string> list2, int index1Start, int index1End, int index2Start, int index2End, int granularity)
         {
 
             List<Block> similarityBlocks = new List<Block>();
 
+            for (int i = index1Start; i < index1End; i++)
+            {
+                for (int j = index2Start; j < index2End; j++)
+                {
+          
+                    List<string> sentence1 = SplitString(list1[i], granularity);
+                    List<string> sentence2 = SplitString(list2[j], granularity);
+
+                    List<Block> sentenceSimilarities = GetSimilarityBlocks(sentence1, sentence2, 1, granularity);
+
+                    if (sentenceSimilarities.Count() > 0)
+                    {
+
+                        Block newSentence = new Block
+                        {
+                            File1Start = i,
+                            File2Start = j,
+                            Length = 1,
+                            ContainsSubBlock = true,
+                            SubBlocks = sentenceSimilarities
+                        };
+
+                        similarityBlocks.Add(newSentence);
+
+                        i++;
+                        index2Start = j;
+                            
+
+
+                    }
+                    
+                }
+            }
+
+            return similarityBlocks;
+        }
+
+        //Returns a list of indices showing the similarities between two lists
+        private List<Block> GetSimilarityBlocks(List<string> list1, List<string> list2, int index1Start, int index1End, int index2Start, int index2End, int recLevel, int granularity)
+        {
+            List<Block> similarityBlocks = new List<Block>();
+
             Block currentSimilarity;
 
-            int recentFile1Occurence = -1;
-            int recentFile2Occurence = -1;
-
-            List<string> sentence1;
-            List<string> sentence2;
-
             currentSimilarity = GetLongestSublist(list1, list2, index1Start, index1End, index2Start, index2End);
-
 
             if (currentSimilarity.Length == 0)
             {
 
-                
-
-
-                if (!recLevel)
+                if (recLevel < 1 && granularity > 0)
                 {
-
-
-                    for (int i = index1Start; i < index1End; i++)
-                    {
-                        for (int j = index2Start; j < index2End; j++)
-                        {
-
-                            if (i > recentFile1Occurence && j > recentFile2Occurence)
-                            {
-
-                                if (granularity == 0)
-                                {
-                                    sentence1 = list1[i].Split(' ').ToList();
-                                    sentence2 = list2[j].Split(' ').ToList();
-                                }
-                                else
-                                {
-                                    sentence1 = list1[i].Select(curChar => curChar.ToString()).ToList();
-                                    sentence2 = list2[j].Select(curChar => curChar.ToString()).ToList();
-                                }
-
-
-                                List<Block> sentenceSimilarities = GetSimilarities(sentence1,sentence2,true,granularity);
-
-
-                                if (sentenceSimilarities.Count() > 0)
-                                {
-
-                                    Block newSentence = new Block();
-                                    newSentence.File1Start = i;
-                                    newSentence.File2Start = j;
-                                    newSentence.Length = 1;
-                                    newSentence.ContainsSubBlock = true;
-
-                                    newSentence.subBlocks = sentenceSimilarities;
-
-                                    similarityBlocks.Add(newSentence);
-
-                                    recentFile1Occurence = i;
-                                    recentFile2Occurence = j;
-
-                              
-                                }
-
-
-                            }
-                        }
-                    }
-
+                    similarityBlocks.AddRange(GetSubSimilarities(list1, list2, index1Start, index1End, index2Start, index2End, granularity));
                 }
-
 
                 return similarityBlocks;
             }
 
-
             similarityBlocks.Add(currentSimilarity);
 
-            List<Block> upperHalf;
-            List<Block> lowerHalf;
+            int lowerFile1Start = currentSimilarity.File1Start + currentSimilarity.Length;
+            int lowerFile2Start = currentSimilarity.File2Start + currentSimilarity.Length;
 
-            upperHalf = GetSimilarities(list1, list2, index1Start, currentSimilarity.File1Start, index2Start, currentSimilarity.File2Start,false,granularity);
-            lowerHalf = GetSimilarities(list1, list2, currentSimilarity.File1Start + currentSimilarity.Length, index1End, currentSimilarity.File2Start + currentSimilarity.Length, index2End,false,granularity);
+            similarityBlocks.AddRange(GetSimilarityBlocks(list1, list2, index1Start, currentSimilarity.File1Start, index2Start, currentSimilarity.File2Start, 0, granularity));
+            similarityBlocks.AddRange(GetSimilarityBlocks(list1, list2, lowerFile1Start, index1End, lowerFile2Start, index2End, 0, granularity));
 
-            similarityBlocks.AddRange(upperHalf);
-            similarityBlocks.AddRange(lowerHalf);
 
-            return similarityBlocks;
-                       
+            return similarityBlocks;             
         }
 
-        public List<Block> GetSimilarities(List<string> list1, List<string> list2, int granularity)
+        public List<Block> GetSimilarityBlocks(List<string> list1, List<string> list2, int recLevel, int granularity)
         {
-            return GetSimilarities(list1, list2, 0, list1.Count(), 0, list2.Count(),false, granularity);
+            return GetSimilarityBlocks(list1, list2, 0, list1.Count(), 0, list2.Count(), recLevel, granularity);
         }
 
-        public List<Block> GetSimilarities(List<string> list1, List<string> list2, bool phraseLevel, int granularity)
+        //Creates a new Line object, each with a single phrase
+        public Line CreateLine(List<string> currentList, int listNumber, int listPosition, int variant)
         {
-            return GetSimilarities(list1, list2, 0, list1.Count(), 0, list2.Count(), phraseLevel, granularity);
+            Line l = new Line();
+
+            if (listNumber == 1)
+            {
+                l.File1Number = listPosition;
+            }
+            else
+            {
+                l.File2Number = listPosition;
+            }
+
+            Phrase p = new Phrase
+            {
+                Variant = variant,
+                Text = currentList[listPosition]
+            };
+
+            l.Phrases.Add(p);
+            return l;
         }
 
-
-
-        public List<Line> GetLines(List<Block> similarityBlocks, List<string> list1, List<string> list2, bool sentenceLevel, int granularity)
+        //Translates a list of similarity blocks into the physical text 
+        public List<Line> GetLines(List<Block> similarityBlocks, List<string> list1, List<string> list2, int recLevel, int granularity)
         {
-
             List<Line> lines = new List<Line>();
             
-   
-
             similarityBlocks = similarityBlocks.OrderBy(Block => Block.File1Start).ToList();
-
-
 
             int lastFile1BlockEnd = -1;
             int lastFile2BlockEnd = -1;
 
-
-            //
-
-            List<string> sentence1;
-            List<string> sentence2;
-
             for (int i = 0; i < similarityBlocks.Count(); i++)
             {
-
-
-
                 if (i == 0)
                 {
-
-
                     for (int j = 0; j < similarityBlocks[i].File1Start; j++)
                     {
-
-                        Line l = new Line();
-
-                        l.File1Number = j;
-
-                        Phrase p = new Phrase();
-
-
-                        p.Variant = -1;
-                        p.Text = list1[j];
-
-
-
-
-                        l.Phrases.Add(p);
-
-                        lines.Add(l);
-
+                        lines.Add(CreateLine(list1, 1, j, -1));
                     }
 
                     for (int j = 0; j < similarityBlocks[i].File2Start; j++)
                     {
-                        Line l = new Line();
-
-                        l.File2Number = j;
-
-                        Phrase p = new Phrase();
-
-                        p.Text = list2[j];
-
-                        p.Variant = 1;
-
-                        l.Phrases.Add(p);
-
-                        lines.Add(l);
-
+                        lines.Add(CreateLine(list2, 2, j, 1));
+                    }
+                }
+                else
+                {
+                    for (int j = similarityBlocks[i - 1].File1Start + similarityBlocks[i - 1].Length; j < similarityBlocks[i].File1Start; j++)
+                    {
+                        lines.Add(CreateLine(list1, 1, j, -1));
                     }
 
+                    for (int j = similarityBlocks[i - 1].File2Start + similarityBlocks[i - 1].Length; j < similarityBlocks[i].File2Start; j++)
+                    {
+                        lines.Add(CreateLine(list2, 2, j, 1));
+                    }
                 }
 
-
-
-                if (!sentenceLevel && similarityBlocks[i].ContainsSubBlock)
+                if (recLevel < 1 && similarityBlocks[i].ContainsSubBlock)
                 {
-
-                    Line l = new Line();
-
-                    l.File1Number = similarityBlocks[i].File1Start;
-                    l.File2Number = similarityBlocks[i].File2Start;
-
-
-                    if (granularity == 0)
+                    Line l = new Line
                     {
-                        sentence1 = list1[similarityBlocks[i].File1Start].Split(' ').ToList();
-                        sentence2 = list2[similarityBlocks[i].File2Start].Split(' ').ToList();
-                    }
-                    else
+                        File1Number = similarityBlocks[i].File1Start,
+                        File2Number = similarityBlocks[i].File2Start
+                    };
+
+                    List<string> sentence1 = SplitString(list1[similarityBlocks[i].File1Start], granularity);
+                    List<string> sentence2 = SplitString(list2[similarityBlocks[i].File2Start], granularity);
+
+                    foreach (Line a in GetLines(similarityBlocks[i].SubBlocks, sentence1, sentence2, 1, granularity))
                     {
-                        sentence1 = list1[similarityBlocks[i].File1Start].Select(curChar => curChar.ToString()).ToList();
-                        sentence2 = list2[similarityBlocks[i].File2Start].Select(curChar => curChar.ToString()).ToList();
-                    }
-
-                    foreach (Line a in GetLines(similarityBlocks[i].subBlocks, sentence1, sentence2, true, granularity))
-                    {
-
-
                         foreach (Phrase b in a.Phrases)
                         {
-                            Phrase tempPhrase = new Phrase();
-                            tempPhrase.Variant = b.Variant;
-                            tempPhrase.Text = b.Text;
+                            Phrase tempPhrase = new Phrase
+                            {
+                                Variant = b.Variant,
+                                Text = b.Text
+                            };
 
-
-
-                            if (granularity == 0)
+                            if (granularity == 1)
                             {
                                 tempPhrase.Text += " ";
                             }
@@ -323,167 +380,68 @@ namespace FileDifferenceAnalyser
 
                     lines.Add(l);
 
-       
                 }
                 else
                 {
-
-
-                    if (i != 0)
-                    {
-
-                        for (int j = similarityBlocks[i - 1].File1Start + similarityBlocks[i - 1].Length; j < similarityBlocks[i].File1Start; j++)
-                        {
-                            Line l = new Line();
-
-                            l.File1Number = j;
-
-                            Phrase p = new Phrase();
-
-                            p.Variant = -1;
-                            p.Text = list1[j];
-
-
-
-                            l.Phrases.Add(p);
-
-                            lines.Add(l);
-
-
-                        }
-
-                        for (int j = similarityBlocks[i - 1].File2Start + similarityBlocks[i - 1].Length; j < similarityBlocks[i].File2Start; j++)
-                        {
-                            Line l = new Line();
-
-                            l.File1Number = j;
-
-                            Phrase p = new Phrase();
-
-                            p.Variant = 1;
-                            p.Text = list2[j];
-
-                            l.Phrases.Add(p);
-
-                            lines.Add(l);
-
-                        }
-                    }
-
                     //Adds the current similarity block
                     for (int j = 0; j < (similarityBlocks[i].File1Start + similarityBlocks[i].Length) - similarityBlocks[i].File1Start; j++)
                     {
 
+                        Line l = new Line
+                        {
+                            File1Number = similarityBlocks[i].File1Start + j,
+                            File2Number = similarityBlocks[i].File2Start + j
+                        };
 
-
-                        Line l = new Line();
-
-                        l.File1Number = similarityBlocks[i].File1Start + j;
-                        l.File2Number = similarityBlocks[i].File2Start + j;
-
-                        Phrase p = new Phrase();
-                        p.Variant = 0;
-
-                       
-                        p.Text = list1[similarityBlocks[i].File1Start + j];
+                        Phrase p = new Phrase
+                        {
+                            Variant = 0,
+                            Text = list1[similarityBlocks[i].File1Start + j]
+                        };
                         l.Phrases.Add(p);
 
                         lines.Add(l);
 
-
-
                     }
-
-
-
                 }
             }
-
-
 
             if (similarityBlocks.Count() == 0)
             {
                 similarityBlocks.Add(new Block { File1Start = -1, File2Start = -1, Length = 1 });
             }
 
-            lastFile1BlockEnd = similarityBlocks[similarityBlocks.Count() - 1].File1Start + similarityBlocks[similarityBlocks.Count() - 1].Length;
-            lastFile2BlockEnd = similarityBlocks[similarityBlocks.Count() - 1].File2Start + similarityBlocks[similarityBlocks.Count() - 1].Length;
-
+            lastFile1BlockEnd = similarityBlocks.Last().File1Start + similarityBlocks.Last().Length;
+            lastFile2BlockEnd = similarityBlocks.Last().File2Start + similarityBlocks.Last().Length;
 
             for (int i = lastFile1BlockEnd; i < list1.Count(); i++)
             {
-
-    
-
-                Line l = new Line();
-
-                l.File1Number = i;
-
-                Phrase p = new Phrase();
-                p.Variant = -1;
-                p.Text = list1[i];
-                l.Phrases.Add(p);
-
-                lines.Add(l);
-
+                lines.Add(CreateLine(list1, 1, i, -1));
             }
 
             for (int i = lastFile2BlockEnd; i < list2.Count(); i++)
             {
-                Line l = new Line();
-
-                l.File2Number = i;
-
-                Phrase p = new Phrase();
-                p.Variant = 1;
-                p.Text = list2[i];
-                l.Phrases.Add(p);
-
-                lines.Add(l);
-
+                lines.Add(CreateLine(list2, 1, i, 1));
             }
 
             return lines;
-
         }
-
 
         public List<Line> GetLines(List<Block> similarityBlocks, List<string> list1, List<string> list2, int granularity)
         {
-            return GetLines(similarityBlocks, list1, list2, false, granularity);
+            return GetLines(similarityBlocks, list1, list2, 0, granularity);
         }
 
-
-        public List<Line> FindDifference(string[] file2Array, int granularity)
+        //Controller method 
+        public List<Line> FindDifference(List<string> file2Content, int granularity)
         {
 
-            List<string> file1Content = this.Read().ToList<string>();
-            List<string> file2Content = file2Array.ToList<string>();
+            //Finds the indices of every similar section in the two files
+            //A higher granularity rating, the more in-depth the analysis goes (lines => words => characters)
+            List<Block> similarityBlocks = GetSimilarityBlocks(Read(), file2Content, 0, granularity);
 
-            List<Block> similarityBlocks = GetSimilarities(file1Content, file2Content, granularity);
-
-
-            foreach (Block b in similarityBlocks)
-            {
-                Console.WriteLine(b.File1Start + " : " + b.File2Start + " : " + b.Length);
-
-
-                if (b.ContainsSubBlock)
-                {
-                    foreach (Block c in b.subBlocks)
-                    {
-                        Console.WriteLine("\t" + c.File1Start + " : " + c.File2Start + " : " + c.Length);
-
-
-                    }
-                }
-            }
-
-
-
-            Console.ReadKey();
-
-            List<Line> lines = GetLines(similarityBlocks, file1Content, file2Content, granularity);
+            //Translates the above similarity blocks into 
+            List<Line> lines = GetLines(similarityBlocks, Read(), file2Content, granularity);
 
             return lines;
 

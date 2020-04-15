@@ -45,6 +45,7 @@
   <ItemGroup>
     <Compile Include="Block.cs" />
     <Compile Include="CSVFile.cs" />
+    <Compile Include="IWritable.cs" />
     <Compile Include="IReadable.cs" />
     <Compile Include="Line.cs" />
     <Compile Include="Phrase.cs" />
@@ -54,14 +55,21 @@
     <Compile Include="TSVFile.cs" />
     <Compile Include="TXTFile.cs" />
     <Compile Include="UI.cs" />
+    <Compile Include="UserInput.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
-  <ItemGroup />
   <ItemGroup>
-    <Content Include="Files\File2.txt" />
-    <Content Include="Files\File1.txt" />
+    <Folder Include="Output Files\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Input Files\File6.tsv" />
+    <None Include="Input Files\File5.tsv" />
+    <None Include="Input Files\File4.csv" />
+    <None Include="Input Files\File3.csv" />
+    <Content Include="Input Files\File2.txt" />
+    <Content Include="Input Files\File1.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
